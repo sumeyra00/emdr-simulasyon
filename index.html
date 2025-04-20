@@ -1,0 +1,202 @@
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EMDR Terapi Simülasyonu</title>
+  <style>
+    :root {
+      --light-size: 50px;
+      --light-brightness: 1;
+      --bg-color: #000;
+    }
+
+    body {
+      margin: 0;
+      height: 100vh;
+      background-color: var(--bg-color);
+      color: white;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    .controls {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      justify-content: center;
+      align-items: center;
+      font-size: 12px;
+      background-color: rgba(0, 0, 0, 0.5);
+      padding: 4px;
+      z-index: 10;
+    }
+
+    .controls label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 4px;
+      border-radius: 6px;
+    }
+
+    .controls input,
+    .controls select {
+      width: 60px;
+    }
+
+    .light {
+      width: var(--light-size);
+      height: var(--light-size);
+      background-color: red;
+      border-radius: 50%;
+      opacity: var(--light-brightness);
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      transition: left linear;
+    }
+
+    .container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    #counter {
+      font-size: 14px;
+      font-weight: bold;
+      background: rgba(255, 255, 255, 0.2);
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <label>Boyut
+      <input type="range" id="size" min="20" max="150" value="50">
+    </label>
+    <label>Parlaklık
+      <input type="range" id="brightness" min="0.1" max="1" step="0.1" value="1">
+    </label>
+    <label>Frekans
+      <input type="number" id="frequency" min="100" max="2000" value="440">
+    </label>
+    <label>Tekrar
+      <input type="number" id="repeat" min="1" max="100" value="10">
+    </label>
+    <label>Hız
+      <input type="range" id="speed" min="100" max="3000" step="100" value="1500">
+    </label>
+    <label>Arka Plan
+      <select id="background">
+        <option value="#000">Siyah</option>
+        <option value="#fff">Beyaz</option>
+      </select>
+    </label>
+    <button id="startStopBtn" onclick="toggleEMDR()">Başlat</button>
+    <div id="counter"></div>
+  </div>
+
+  <div class="container">
+    <div id="light" class="light"></div>
+  </div>
+
+  <script>
+    const light = document.getElementById('light');
+    const sizeInput = document.getElementById('size');
+    const brightnessInput = document.getElementById('brightness');
+    const frequencyInput = document.getElementById('frequency');
+    const repeatInput = document.getElementById('repeat');
+    const speedInput = document.getElementById('speed');
+    const backgroundInput = document.getElementById('background');
+    const counter = document.getElementById('counter');
+    const startStopBtn = document.getElementById('startStopBtn');
+
+    let isRunning = false;
+    let shouldStop = false;
+    let audioCtx;
+
+    sizeInput.addEventListener('input', () => {
+      document.documentElement.style.setProperty('--light-size', sizeInput.value + 'px');
+    });
+
+    brightnessInput.addEventListener('input', () => {
+      document.documentElement.style.setProperty('--light-brightness', brightnessInput.value);
+    });
+
+    backgroundInput.addEventListener('change', () => {
+      document.documentElement.style.setProperty('--bg-color', backgroundInput.value);
+      document.body.style.color = backgroundInput.value === '#000' ? 'white' : 'black';
+    });
+
+    function playStereoTone(panValue) {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      const panNode = audioCtx.createStereoPanner();
+
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(frequencyInput.value, audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      panNode.pan.setValueAtTime(panValue, audioCtx.currentTime);
+
+      oscillator.connect(gainNode).connect(panNode).connect(audioCtx.destination);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.2);
+    }
+
+    function toggleEMDR() {
+      if (isRunning) {
+        shouldStop = true;
+        startStopBtn.innerText = 'Duruluyor...';
+      } else {
+        isRunning = true;
+        shouldStop = false;
+        startStopBtn.innerText = 'Dur';
+        startEMDR();
+      }
+    }
+
+    async function startEMDR() {
+      let repeat = parseInt(repeatInput.value);
+      const screenWidth = window.innerWidth;
+      const lightWidth = parseInt(getComputedStyle(light).width);
+      const leftPos = screenWidth * 0.05;
+      const rightPos = screenWidth - lightWidth - leftPos;
+
+      for (let i = repeat; i > 0; i--) {
+        if (shouldStop) break;
+
+        const delay = parseInt(speedInput.value);
+        counter.innerText = `Kalan tekrar: ${i}`;
+
+        light.style.transitionDuration = delay + 'ms';
+        light.style.left = leftPos + 'px';
+        playStereoTone(-1);
+        await new Promise(r => setTimeout(r, delay));
+
+        light.style.transitionDuration = delay + 'ms';
+        light.style.left = rightPos + 'px';
+        playStereoTone(1);
+        await new Promise(r => setTimeout(r, delay));
+      }
+
+      isRunning = false;
+      shouldStop = false;
+      startStopBtn.innerText = 'Başlat';
+      counter.innerText = '';
+    }
+  </script>
+</body>
+</html>
+
